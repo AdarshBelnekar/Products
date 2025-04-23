@@ -1,59 +1,25 @@
+<!DOCTYPE html>
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
-
 <html>
 <head>
     <title>Order Page</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f9f9f9;
-            margin: 0;
-            padding: 20px;
-        }
-
-        h1 {
-            color: #333;
-            text-align: center;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 30px auto;
-            background-color: #fff;
-            box-shadow: 0 0 10px rgba(0,0,0,0.05);
-        }
-
-        th, td {
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            text-align: center;
-        }
-
-        th {
-            background-color: #007BFF;
-            color: white;
-        }
-
-        .low-stock {
-            background-color: #fff3cd;
-        }
-
-        tr:hover {
-            background-color: #f1f1f1;
-        }
+        body { font-family: Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 20px; }
+        h1 { text-align: center; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin: 30px auto; background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { padding: 10px 12px; border: 1px solid #ddd; text-align: center; }
+        th { background: #007BFF; color: #fff; }
+        .low-stock { background: #fff3cd; }
+        tr:hover { background: #f1f1f1; }
     </style>
 </head>
-
 <body>
     <h1>Order Page</h1>
-
-    <form action="/search" method="get">
+    <form id="barcodeForm" autocomplete="off">
         <label for="barcode">Search by Barcode:</label>
         <input type="number" name="barcode" id="barcode" required>
         <button type="submit">Search</button>
     </form>
-
     <table id="productTable">
         <thead>
             <tr>
@@ -68,55 +34,83 @@
                 <th>GST</th>
             </tr>
         </thead>
-        <tbody>
-            <!-- Dynamic rows will be inserted here -->
+        <tbody id="productTableBody">
+            <!-- Table rows will be inserted by JavaScript -->
         </tbody>
     </table>
-
     <script>
-        function renderTable(data) {
-            const tableBody = document.querySelector('#productTable tbody');
+        // Minimal, robust: always show all searched products
+        let searchedProducts = [];
+        function renderTable(products) {
+            const tableBody = document.getElementById('productTableBody');
             tableBody.innerHTML = '';
-            data.forEach(product => {
+            if (!products || products.length === 0) {
                 const row = document.createElement('tr');
-                if (product.quantity < 10) {
-                    row.classList.add('low-stock');
-                }
-                row.innerHTML = `
-                    <td>\${product.barcode}</td>
-                    <td>\${product.productName}</td>
-                    <td>\${product.quantity}</td>
-                    <td>\${product.cgst ? product.cgst : ''}</td>
-                    <td>\${product.sgst ? product.sgst : ''}</td>
-                    <td>\${product.productPrice}</td>
-                    <td>\${product.totalPrice}</td>
-                    <td>\${product.category ? product.category : ''}</td>
-                    <td>\${product.gst ? product.gst : ''}</td>
-                `;
+                let td = document.createElement('td');
+                td.colSpan = 9;
+                td.textContent = 'No products found.';
+                row.appendChild(td);
+                tableBody.appendChild(row);
+                return;
+            }
+            products.forEach(product => {
+                const row = document.createElement('tr');
+                if (product.quantity < 10) row.classList.add('low-stock');
+                row.innerHTML =
+    '<td>' + (product.barcode != null ? product.barcode : '') + '</td>' +
+    '<td>' + (product.productName != null ? product.productName : '') + '</td>' +
+    '<td>' + (product.quantity != null ? product.quantity : '') + '</td>' +
+    '<td>' + (product.cgst != null ? product.cgst : '') + '</td>' +
+    '<td>' + (product.sgst != null ? product.sgst : '') + '</td>' +
+    '<td>' + (product.productPrice != null ? product.productPrice : '') + '</td>' +
+    '<td>' + (product.totalPrice != null ? product.totalPrice : '') + '</td>' +
+    '<td>' + (product.category != null ? product.category : '') + '</td>' +
+    '<td>' + (product.gst != null ? product.gst : '') + '</td>';
+
                 tableBody.appendChild(row);
             });
         }
-
-        // Fetch all products on page load
-        window.onload = function() {
-            fetch('/api/search')
-                .then(response => response.json())
-                .then(renderTable)
-                .catch(error => console.error('Error fetching data:', error));
-        };
-
-        // Handle search form submit
-        document.querySelector('form').addEventListener('submit', function(e) {
+        renderTable(searchedProducts);
+        document.getElementById('barcodeForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const barcode = document.getElementById('barcode').value;
-            let url = '/api/search';
-            if(barcode) {
-                url += '?barcode=' + encodeURIComponent(barcode);
+            const barcodeInput = document.getElementById('barcode');
+            const barcode = barcodeInput.value.trim();
+            if (!barcode) {
+                renderTable(searchedProducts);
+                return;
             }
-            fetch(url)
-                .then(response => response.json())
-                .then(renderTable)
-                .catch(error => console.error('Error fetching data:', error));
+            // Check if already listed
+            const exists = searchedProducts.some(p => String(p.barcode) === barcode);
+            if (exists) {
+                alert('This barcode is already in the list!');
+                renderTable(searchedProducts);
+                return;
+            }
+            fetch('/api/search?barcode=' + encodeURIComponent(barcode))
+                .then(resp => {
+                    if (!resp.ok) throw new Error('Network response was not ok');
+                    return resp.json();
+                })
+                .then(data => {
+                    let prod = null;
+                    if (Array.isArray(data)) {
+                        prod = data.length > 0 ? data[0] : null;
+                    } else if (data && typeof data === 'object') {
+                        prod = (data.barcode && data.productName) ? data : null;
+                    }
+                    if (!prod) {
+                        alert('Product not found!');
+                        renderTable(searchedProducts);
+                        return;
+                    }
+                    searchedProducts.push(prod);
+                    renderTable(searchedProducts);
+                    barcodeInput.value = '';
+                })
+                .catch(error => {
+                    alert('Error fetching product!');
+                    console.error('Error:', error);
+                });
         });
     </script>
 </body>
