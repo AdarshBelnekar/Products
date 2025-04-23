@@ -13,7 +13,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @Controller
-
 public class ProductController {
 
     @Autowired
@@ -46,6 +45,17 @@ public class ProductController {
     @GetMapping("/products")
     public List<ProductEntity> getAllProducts() {
         return productServices.findAllProducts();
+    }
+
+    // New API endpoint for JSON search (by barcode or all)
+    @GetMapping("/api/search")
+    @ResponseBody
+    public List<ProductEntity> searchProducts(@RequestParam(required = false) Integer barcode) {
+        if (barcode != null) {
+            return productServices.findProductsByBarcode(barcode);
+        } else {
+            return productServices.findAllProducts();
+        }
     }
 
     @GetMapping("/search")
