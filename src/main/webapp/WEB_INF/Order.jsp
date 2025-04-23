@@ -64,7 +64,8 @@
                 <th>SGST</th>
                 <th>Price</th>
                 <th>Total Price</th>
-                <th>Updated Date</th>
+                <th>Category</th>
+                <th>GST</th>
             </tr>
         </thead>
         <tbody>
@@ -73,32 +74,50 @@
     </table>
 
     <script>
-        // Fetch the JSON data (this URL should return the JSON you need)
-        fetch('/search/${barcode}')
-            .then(response => response.json())  // Parse the JSON data
-            .then(data => {
-                const tableBody = document.querySelector('#productTable tbody');
-                data.forEach(product => {
-                    const row = document.createElement('tr');
-                    // Add a class if the quantity is low
-                    if (product.quantity < 10) {
-                        row.classList.add('low-stock');
-                    }
+        function renderTable(data) {
+            const tableBody = document.querySelector('#productTable tbody');
+            tableBody.innerHTML = '';
+            data.forEach(product => {
+                const row = document.createElement('tr');
+                if (product.quantity < 10) {
+                    row.classList.add('low-stock');
+                }
+                row.innerHTML = `
+                    <td>\${product.barcode}</td>
+                    <td>\${product.productName}</td>
+                    <td>\${product.quantity}</td>
+                    <td>\${product.cgst ? product.cgst : ''}</td>
+                    <td>\${product.sgst ? product.sgst : ''}</td>
+                    <td>\${product.productPrice}</td>
+                    <td>\${product.totalPrice}</td>
+                    <td>\${product.category ? product.category : ''}</td>
+                    <td>\${product.gst ? product.gst : ''}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
 
-                    row.innerHTML = `
-                        <td>${product.barcode}</td>
-                        <td>${product.name}</td>
-                        <td>${product.quantity}</td>
-                        <td>${product.cgst}</td>
-                        <td>${product.sgst}</td>
-                        <td>${product.productPrice}</td>
-                        <td>${product.totalPrice}</td>
-                        <td>${product.updatedDate}</td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-            })
-            .catch(error => console.error('Error fetching data:', error));
+        // Fetch all products on page load
+        window.onload = function() {
+            fetch('/api/search')
+                .then(response => response.json())
+                .then(renderTable)
+                .catch(error => console.error('Error fetching data:', error));
+        };
+
+        // Handle search form submit
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const barcode = document.getElementById('barcode').value;
+            let url = '/api/search';
+            if(barcode) {
+                url += '?barcode=' + encodeURIComponent(barcode);
+            }
+            fetch(url)
+                .then(response => response.json())
+                .then(renderTable)
+                .catch(error => console.error('Error fetching data:', error));
+        });
     </script>
 </body>
 </html>
